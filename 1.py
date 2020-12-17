@@ -1,4 +1,5 @@
 s="junk"
-print(s)
+for c in s:
+print("*"+c+:#s")
 junk
 

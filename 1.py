@@ -1,3 +1,4 @@
-print(junk)
+s="junk"
+print(s)
 junk
 

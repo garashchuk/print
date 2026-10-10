@@ -77,8 +77,9 @@ end proc:
 #   file = "f.f"      (optional) write the code to this file instead of the screen
 #   optimize = true   (optional) let Maple introduce temporaries (t1, t2, ...)
 #                     for common subexpressions
-#   maxlen = 800      (optional) longest Maple expression (in characters) put
-#                     into a single Fortran statement
+#   maxlen = 400      (optional) longest Maple expression (in characters) put
+#                     into a single Fortran statement; the Fortran text is
+#                     roughly twice as long (spaces, 0.2D1-style constants)
 #
 # Variables carrying assumptions (shown as a11~ after assume(a11 > 0)) are
 # replaced by the plain global names before translation, so CodeGeneration
@@ -86,10 +87,11 @@ end proc:
 #
 # Fortran 77 allows at most 19 continuation lines per statement.  Elements
 # longer than maxlen are split into partial sums/products assigned to
-# temporaries tmp_t1, tmp_t2, ... (declare them double precision), e.g.
-#       tmp_t1 = <first part>
-#       tmp_t2 = <second part>
-#       tmp(1) = tmp_t1 + tmp_t2
+# temporaries tmpt1, tmpt2, ... (declare them double precision), e.g.
+#       tmpt1 = <first part>
+#       tmpt2 = <second part>
+#       tmp(1) = tmpt1 + tmpt2
+# (no underscore: Fortran 77 names may contain only letters and digits)
 #
 # Example
 #   V := y^2 + z^2:
@@ -100,7 +102,7 @@ end proc:
 TaylorFortran := proc(c::Vector, rname::string := "tmp",
                       {file::string := "",
                        optimize::truefalse := false,
-                       maxlen::posint := 800})
+                       maxlen::posint := 400})
     local opts, S, cc, eqs, k, newtemp, shrink, i;
 
     # strip assumptions: map every name (e.g. the assumed local a11~) to the
@@ -117,7 +119,7 @@ TaylorFortran := proc(c::Vector, rname::string := "tmp",
     newtemp := proc(e)
         local t;
         k := k + 1;
-        t := convert(cat(rname, "_t", k), name);
+        t := convert(cat(rname, "t", k), name);
         eqs := [op(eqs), t = e];
         t;
     end proc;

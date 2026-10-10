@@ -20,14 +20,23 @@
 N     := 10:            # terms per statement; lower it if the F77 warning appears
 fname := "taylor.f":    # output file (overwritten)
 
+# Strip assumptions.  After assume(a11 > 0) the global name a11 is assigned
+# to a new local variable that prints as a11~; CodeGeneration cannot use that
+# name and renames it to cg, cg1, ...  So: (1) unassign the global names
+# (this drops their assumptions in the session), (2) substitute the plain
+# global names for the a11~ variables.
+L := indets(tmp, And(symbol, Not(protected))):
+for v in L do
+    s := StringTools:-SubstituteAll(convert(v, string), "~", ""):
+    parse(cat(s, " := '", s, "':"), statement):
+end do:
+S := map(v -> v = convert(StringTools:-SubstituteAll(convert(v, string),
+                                                     "~", ""), name), L):
+ctmp := map(e -> subs(S, e), tmp):
+
 fd := fopen(fname, WRITE):
-for i to LinearAlgebra:-Dimension(tmp) do
-    e := tmp[i]:
-    # strip assumptions (a11~ -> a11)
-    e := subs(map(v -> v = convert(StringTools:-SubstituteAll(convert(v, string),
-                                                              "~", ""), name),
-                  indets(e, symbol)), e):
-    e := normal(e):
+for i to LinearAlgebra:-Dimension(ctmp) do
+    e := normal(ctmp[i]):
     den := denom(e):
     if has(den, I) then
         error "denominator of tmp[%1] is complex: %2", i, den;

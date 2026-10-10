@@ -1,40 +1,49 @@
 # TaylorCoeffs2D
 #
 # Extracts the Taylor expansion coefficients, through second order, of a
-# two-dimensional function f(y,z) about the point (y0,z0), and returns them
+# two-dimensional function of (y,z) about the point (y0,z0), and returns them
 # as a Vector:
 #
-#   f(y,z) ~ c[1] + c[2]*(y-y0) + c[3]*(z-z0)
-#              + c[4]*(y-y0)^2 + c[5]*(y-y0)*(z-z0) + c[6]*(z-z0)^2
+#   V ~ c[1] + c[2]*(y-y0) + c[3]*(z-z0)
+#         + c[4]*(y-y0)^2 + c[5]*(y-y0)*(z-z0) + c[6]*(z-z0)^2
 #
 # so that
-#   c = < f, f_y, f_z, f_yy/2, f_yz, f_zz/2 >   evaluated at (y0,z0).
+#   c = < V, V_y, V_z, V_yy/2, V_yz, V_zz/2 >   evaluated at (y0,z0).
 #
 # Arguments
-#   f            name of the function (a procedure such as f := (y,z) -> ...,
-#                an unassigned name for symbolic results, or a string naming it)
+#   V                 an already defined expression in y and z,
+#                     e.g. V := y^2 + z^2
+#                     (a procedure such as V := (y,z) -> ... also works)
 #   point = [y0,z0]   (optional) expansion point, default [0,0]
+#   vars  = [y,z]     (optional) the two variables, default the global y and z
 #   store = vname     (optional) also assign the Vector to the name vname
 #
 # Examples
-#   g := (y,z) -> exp(y)*cos(z):
-#   TaylorCoeffs2D(g);                        # <1, 1, 0, 1/2, 0, -1/2>
-#   TaylorCoeffs2D(g, point = [1, Pi], store = 'cg'):  cg;
-#   TaylorCoeffs2D(h);                        # symbolic: <h(0,0), D[1](h)(0,0), ...>
+#   V := y^2 + z^2:
+#   TaylorCoeffs2D(V);                        # <0, 0, 0, 1, 0, 1>
+#   TaylorCoeffs2D(V, point = [1, 2]);        # <5, 2, 4, 1, 0, 1>
+#   W := exp(y)*cos(z):
+#   TaylorCoeffs2D(W, store = 'cW'):  cW;     # <1, 1, 0, 1/2, 0, -1/2>
 
-TaylorCoeffs2D := proc(f::{name, procedure, string},
+TaylorCoeffs2D := proc(V::{algebraic, procedure},
                        {point::list := [0, 0],
+                        vars::list(name) := [:-y, :-z],
                         store::{name, identical(false)} := false})
     local F, y, z, pt, c;
 
     if nops(point) <> 2 then
         error "point must be a list [y0, z0], received %1", point;
     end if;
+    if nops(vars) <> 2 then
+        error "vars must be a list of two names, received %1", vars;
+    end if;
 
-    if type(f, string) then
-        F := convert(f, name)(y, z);
+    y, z := op(vars);
+
+    if type(V, procedure) then
+        F := V(y, z);
     else
-        F := f(y, z);
+        F := V;
     end if;
 
     pt := {y = point[1], z = point[2]};

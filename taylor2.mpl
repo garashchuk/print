@@ -74,24 +74,34 @@ end proc:
 # Arguments
 #   c                 the coefficient Vector (e.g. tmp)
 #   rname             (optional) array name used in the Fortran code, default "tmp"
-#   file = "f.f90"    (optional) write the code to this file instead of the screen
+#   file = "f.f"      (optional) write the code to this file instead of the screen
 #   optimize = true   (optional) let Maple introduce temporaries (t1, t2, ...)
 #                     for common subexpressions
+#   maxlen = 800      (optional) longest Maple expression (in characters) put
+#                     into a single Fortran statement
 #
 # Variables carrying assumptions (shown as a11~ after assume(a11 > 0)) are
 # replaced by the plain global names before translation, so CodeGeneration
 # keeps a11 instead of renaming it to cg, cg1, ...
 #
+# Fortran 77 allows at most 19 continuation lines per statement.  Elements
+# longer than maxlen are split into partial sums/products assigned to
+# temporaries tmp_t1, tmp_t2, ... (declare them double precision), e.g.
+#       tmp_t1 = <first part>
+#       tmp_t2 = <second part>
+#       tmp(1) = tmp_t1 + tmp_t2
+#
 # Example
 #   V := y^2 + z^2:
 #   tmp := TaylorCoeffs2D(V, point = [a, b]):
 #   TaylorFortran(tmp);
-#   TaylorFortran(tmp, "coef", file = "coef.f90");
+#   TaylorFortran(tmp, "coef", file = "coef.f");
 
 TaylorFortran := proc(c::Vector, rname::string := "tmp",
                       {file::string := "",
-                       optimize::truefalse := false})
-    local opts, S, cc;
+                       optimize::truefalse := false,
+                       maxlen::posint := 800})
+    local opts, S, cc, eqs, k, newtemp, shrink, i;
 
     # strip assumptions: map every name (e.g. the assumed local a11~) to the
     # plain global name with the same spelling
@@ -100,12 +110,60 @@ TaylorFortran := proc(c::Vector, rname::string := "tmp",
              indets(convert(c, list), symbol));
     cc := map(e -> subs(S, e), c);
 
-    opts := resultname = rname, precision = double,
-            ':-optimize' = optimize, limitvariablelength = false;
+    # split long elements into temporaries
+    eqs := [];
+    k := 0;
 
-    if file = "" then
-        CodeGeneration:-Fortran(cc, opts);
-    else
-        CodeGeneration:-Fortran(cc, opts, output = file);
+    newtemp := proc(e)
+        local t;
+        k := k + 1;
+        t := convert(cat(rname, "_t", k), name);
+        eqs := [op(eqs), t = e];
+        t;
+    end proc;
+
+    shrink := proc(e)
+        local f, ops, groups, cur, r;
+        if length(convert(e, string)) <= maxlen then
+            return e;
+        end if;
+        if type(e, {`+`, `*`}) then
+            f := op(0, e);
+            ops := map(shrink, [op(e)]);
+            groups := [];
+            cur := [];
+            for r in ops do
+                if cur <> [] and length(convert(f(op(cur), r), string)) > maxlen then
+                    groups := [op(groups), cur];
+                    cur := [r];
+                else
+                    cur := [op(cur), r];
+                end if;
+            end do;
+            groups := [op(groups), cur];
+            if nops(groups) = 1 then
+                return f(op(cur));
+            end if;
+            return shrink(f(op(map(g -> newtemp(f(op(g))), groups))));
+        elif type(e, {function, `^`}) then
+            return map(shrink, e);
+        else
+            return e;
+        end if;
+    end proc;
+
+    for i to LinearAlgebra:-Dimension(cc) do
+        cc[i] := shrink(cc[i]);
+    end do;
+
+    opts := precision = double, ':-optimize' = optimize,
+            limitvariablelength = false;
+    if file <> "" then
+        opts := opts, output = file;
     end if;
+
+    if eqs <> [] then
+        CodeGeneration:-Fortran(eqs, opts);
+    end if;
+    CodeGeneration:-Fortran(cc, resultname = rname, opts);
 end proc:

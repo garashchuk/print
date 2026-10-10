@@ -10,10 +10,15 @@
 #   iI^2 = -1, and split into real part (coeff of iI^0) and imaginary part
 #   (coeff of iI^1).  Each part is written as a running sum of N terms per
 #   statement, then divided by the denominator:
-#       Rtmp1 = <terms 1..N>
-#       Rtmp1 = Rtmp1 + <terms N+1..2N>
+#       Rtmp(1) = <terms 1..N>
+#       Rtmp(1) = Rtmp(1) + <terms N+1..2N>
 #       ...
-#       Rtmp1 = Rtmp1 / (a11 * M)
+#       Rtmp(1) = Rtmp(1) / a11 / M
+#   (declare  double precision Rtmp(6), Itmp(6)  in the Fortran code)
+#
+# CodeGeneration cannot use Rtmp(1) as a result name, so the code is generated
+# with a placeholder of the same length (RtmpQ1Q) which is then replaced by
+# Rtmp(1); equal length keeps the fixed-form line layout valid.
 #
 # Usage:   read "taylor_fortran.mpl":     (with tmp already defined)
 
@@ -43,26 +48,27 @@ for i to LinearAlgebra:-Dimension(ctmp) do
     end if:
     num := rem(expand(subs(I = iI, numer(e))), iI^2 + 1, iI):
     for part in [["Rtmp", coeff(num, iI, 0)], ["Itmp", coeff(num, iI, 1)]] do
-        lhsname := cat(part[1], i):
+        lhsname := cat(part[1], "Q", i, "Q"):     # placeholder, e.g. RtmpQ1Q
+        target  := cat(part[1], "(", i, ")"):     # final name,  e.g. Rtmp(1)
         terms := `if`(type(part[2], `+`), [op(part[2])], [part[2]]):
         for j from 1 by N to nops(terms) do
             chunk := add(terms[k], k = j .. min(j + N - 1, nops(terms))):
             if j > 1 then
                 chunk := convert(lhsname, name) + chunk:
             end if:
-            fprintf(fd, "%s",
-                    CodeGeneration:-Fortran(chunk, resultname = lhsname,
+            code := CodeGeneration:-Fortran(chunk, resultname = lhsname,
                                             precision = double,
                                             limitvariablelength = false,
-                                            output = string)):
+                                            output = string):
+            fprintf(fd, "%s", StringTools:-SubstituteAll(code, lhsname, target)):
         end do:
         if den <> 1 then
-            fprintf(fd, "%s",
-                    CodeGeneration:-Fortran(convert(lhsname, name)/den,
+            code := CodeGeneration:-Fortran(convert(lhsname, name)/den,
                                             resultname = lhsname,
                                             precision = double,
                                             limitvariablelength = false,
-                                            output = string)):
+                                            output = string):
+            fprintf(fd, "%s", StringTools:-SubstituteAll(code, lhsname, target)):
         end if:
     end do:
 end do:

@@ -78,6 +78,10 @@ end proc:
 #   optimize = true   (optional) let Maple introduce temporaries (t1, t2, ...)
 #                     for common subexpressions
 #
+# Variables carrying assumptions (shown as a11~ after assume(a11 > 0)) are
+# replaced by the plain global names before translation, so CodeGeneration
+# keeps a11 instead of renaming it to cg, cg1, ...
+#
 # Example
 #   V := y^2 + z^2:
 #   tmp := TaylorCoeffs2D(V, point = [a, b]):
@@ -87,14 +91,21 @@ end proc:
 TaylorFortran := proc(c::Vector, rname::string := "tmp",
                       {file::string := "",
                        optimize::truefalse := false})
-    local opts;
+    local opts, S, cc;
+
+    # strip assumptions: map every name (e.g. the assumed local a11~) to the
+    # plain global name with the same spelling
+    S := map(v -> v = convert(StringTools:-SubstituteAll(convert(v, string),
+                                                         "~", ""), name),
+             indets(convert(c, list), symbol));
+    cc := map(e -> subs(S, e), c);
 
     opts := resultname = rname, precision = double,
             ':-optimize' = optimize, limitvariablelength = false;
 
     if file = "" then
-        CodeGeneration:-Fortran(c, opts);
+        CodeGeneration:-Fortran(cc, opts);
     else
-        CodeGeneration:-Fortran(c, opts, output = file);
+        CodeGeneration:-Fortran(cc, opts, output = file);
     end if;
 end proc:

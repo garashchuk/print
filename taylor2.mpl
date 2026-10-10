@@ -63,3 +63,38 @@ TaylorCoeffs2D := proc(V::{algebraic, procedure},
 
     return c;
 end proc:
+
+# TaylorFortran
+#
+# Generates Fortran code for the elements of a coefficient Vector returned by
+# TaylorCoeffs2D, one assignment per element:
+#       tmp(1) = ...
+#       tmp(2) = ...
+#
+# Arguments
+#   c                 the coefficient Vector (e.g. tmp)
+#   rname             (optional) array name used in the Fortran code, default "tmp"
+#   file = "f.f90"    (optional) write the code to this file instead of the screen
+#   optimize = true   (optional) let Maple introduce temporaries (t1, t2, ...)
+#                     for common subexpressions
+#
+# Example
+#   V := y^2 + z^2:
+#   tmp := TaylorCoeffs2D(V, point = [a, b]):
+#   TaylorFortran(tmp);
+#   TaylorFortran(tmp, "coef", file = "coef.f90");
+
+TaylorFortran := proc(c::Vector, rname::string := "tmp",
+                      {file::string := "",
+                       optimize::truefalse := false})
+    local opts;
+
+    opts := resultname = rname, precision = double,
+            ':-optimize' = optimize, limitvariablelength = false;
+
+    if file = "" then
+        CodeGeneration:-Fortran(c, opts);
+    else
+        CodeGeneration:-Fortran(c, opts, output = file);
+    end if;
+end proc:
